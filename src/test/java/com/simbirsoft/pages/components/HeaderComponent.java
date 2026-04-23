@@ -3,6 +3,7 @@ package com.simbirsoft.pages.components;
 import com.simbirsoft.pages.BasePage;
 import com.simbirsoft.pages.CartPage;
 import com.simbirsoft.pages.SearchResultPage;
+import io.qameta.allure.Step;
 import org.openqa.selenium.Keys;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
@@ -17,30 +18,18 @@ public class HeaderComponent extends BasePage {
     @FindBy(id = "filter_keyword")
     private WebElement searchInput;
 
-    @FindBy(css = "div.button-in-search")
-    private WebElement searchButton;
+    @FindBy(css = "ul.nav.topcart")
+    private WebElement cartDropdown;
 
-    @FindBy(css = "ul.nav.topcart span.cart_total")
-    private WebElement cartTotal;
+    @FindBy(css = "li[data-id='menu_cart'] a")
+    private WebElement cartLink;
 
     public HeaderComponent(WebDriver driver, WebDriverWait waiter) {
         super(driver, waiter);
         PageFactory.initElements(new AjaxElementLocatorFactory(driver, 10), this);
     }
 
-    public HeaderComponent searchFor(String query) {
-        waiter.until(ExpectedConditions.elementToBeClickable(searchInput));
-        searchInput.clear();
-        searchInput.sendKeys(query);
-        return this;
-    }
-
-    public SearchResultPage clickSearchButton() {
-        waiter.until(ExpectedConditions.elementToBeClickable(searchButton));
-        searchButton.click();
-        return new SearchResultPage(driver, waiter);
-    }
-
+    @Step("Поиск и отправка запроса: '{query}'")
     public SearchResultPage searchForAndSubmit(String query) {
         waiter.until(ExpectedConditions.elementToBeClickable(searchInput));
         searchInput.clear();
@@ -49,13 +38,14 @@ public class HeaderComponent extends BasePage {
         return new SearchResultPage(driver, waiter);
     }
 
+    @Step("Переход в корзину")
     public CartPage goToCart() {
-        driver.get("https://automationteststore.com/index.php?rt=checkout/cart");
-        return new CartPage(driver, waiter);
-    }
+        waiter.until(ExpectedConditions.elementToBeClickable(cartDropdown));
+        initActions().moveToElement(cartDropdown).perform();
 
-    public String getCartTotal() {
-        waiter.until(ExpectedConditions.visibilityOf(cartTotal));
-        return cartTotal.getText();
+        waiter.until(ExpectedConditions.elementToBeClickable(cartLink));
+        cartLink.click();
+
+        return new CartPage(driver, waiter);
     }
 }

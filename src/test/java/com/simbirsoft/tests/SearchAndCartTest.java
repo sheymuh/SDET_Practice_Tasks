@@ -1,97 +1,101 @@
 package com.simbirsoft.tests;
 
 import com.simbirsoft.helpers.AssertionHelper;
-import com.simbirsoft.pages.*;
+import com.simbirsoft.pages.CartPage;
+import com.simbirsoft.pages.ProductPage;
+import com.simbirsoft.pages.SearchResultPage;
+import com.simbirsoft.pages.components.CartItem;
 import io.qameta.allure.Description;
 import io.qameta.allure.Feature;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 
 import java.util.concurrent.ThreadLocalRandom;
 
 @Feature("Проверка поисковой выдачи и корзины")
-@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-@Execution(ExecutionMode.SAME_THREAD)
+@Execution(ExecutionMode.CONCURRENT)
 public class SearchAndCartTest extends BaseTest {
 
     private SearchResultPage searchPage;
     private CartPage cartPage;
-    private int quantity2;
-    private int quantity3;
+
+    @BeforeEach
+    public void setUp() {
+        super.setUp();
+        searchPage = homePage.getHeader().searchForAndSubmit("shirt");
+    }
 
     @Test
-    @Order(1)
     @Description("TC-2.1: Поиск товара 'shirt' и сортировка результатов")
     public void testSearchAndSort() {
-        driver.get("https://automationteststore.com/index.php?rt=product/search&keyword=shirt&sort=pd.name-ASC");
-        searchPage = new SearchResultPage(driver, waiter);
-
         int productCount = searchPage.getProductCount();
         Assertions.assertTrue(productCount > 0, "No products found for 'shirt'");
 
+        searchPage.sortByNameAsc();
         AssertionHelper.assertSortedByNameAsc(searchPage.getProductNames());
-        takeScreenshot("search-results-sorted");
     }
 
     @Test
-    @Order(2)
-    @Description("TC-2.2: Добавление 2-го и 3-го товара в корзину")
+    @Description("TC-2.2: Добавление 2-го и 3-го товара в корзину со случайным количеством")
     public void testAddSecondAndThirdProducts() {
-        driver.get("https://automationteststore.com/index.php?rt=product/search&keyword=shirt&sort=pd.name-ASC");
-        searchPage = new SearchResultPage(driver, waiter);
-
         int productCount = searchPage.getProductCount();
-        Assertions.assertTrue(productCount >= 3, "Search should return at least 3 products, found: " + productCount);
+        Assertions.assertTrue(productCount >= 3,
+                "Search should return at least 3 products, found: " + productCount);
 
-        quantity2 = ThreadLocalRandom.current().nextInt(1, 11);
+        searchPage.sortByNameAsc();
+
+        int quantity2 = ThreadLocalRandom.current().nextInt(1, 11);
         ProductPage productPage2 = searchPage.clickProductByIndex(1);
-        productPage2.setQuantity(quantity2).addToCart();
+        productPage2.setQuantity(quantity2);
+        cartPage = productPage2.addToCart();
 
-        driver.get("https://automationteststore.com/index.php?rt=product/search&keyword=shirt&sort=pd.name-ASC");
-        searchPage = new SearchResultPage(driver, waiter);
+        searchPage = homePage.getHeader().searchForAndSubmit("shirt");
 
-        quantity3 = ThreadLocalRandom.current().nextInt(1, 11);
+        int quantity3 = ThreadLocalRandom.current().nextInt(1, 11);
         ProductPage productPage3 = searchPage.clickProductByIndex(2);
-        productPage3.setQuantity(quantity3).addToCart();
+        productPage3.setQuantity(quantity3);
+        cartPage = productPage3.addToCart();
 
-        takeScreenshot("products-added-to-cart");
+        Assertions.assertEquals(2, cartPage.getItemCount(),
+                "Cart should contain 2 items");
     }
 
     @Test
-    @Order(3)
-    @Description("TC-2.3: Удвоение количества самого дешёвого товара")
+    @Description("TC-2.3: Удвоение количества самого дешёвого товара и проверка итоговой суммы")
     public void testDoubleCheapestItemQuantity() {
-        driver.get("https://automationteststore.com/index.php?rt=product/search&keyword=shirt&sort=pd.name-ASC");
-        searchPage = new SearchResultPage(driver, waiter);
         Assertions.assertTrue(searchPage.getProductCount() >= 3, "Not enough products");
 
-        quantity2 = ThreadLocalRandom.current().nextInt(1, 11);
+        searchPage.sortByNameAsc();
+
+        int quantity2 = ThreadLocalRandom.current().nextInt(1, 11);
         ProductPage productPage2 = searchPage.clickProductByIndex(1);
-        productPage2.setQuantity(quantity2).addToCart();
+        productPage2.setQuantity(quantity2);
+        cartPage = productPage2.addToCart();
 
-        driver.get("https://automationteststore.com/index.php?rt=product/search&keyword=shirt&sort=pd.name-ASC");
-        searchPage = new SearchResultPage(driver, waiter);
+        searchPage = homePage.getHeader().searchForAndSubmit("shirt");
 
-        quantity3 = ThreadLocalRandom.current().nextInt(1, 11);
+        int quantity3 = ThreadLocalRandom.current().nextInt(1, 11);
         ProductPage productPage3 = searchPage.clickProductByIndex(2);
-        productPage3.setQuantity(quantity3).addToCart();
+        productPage3.setQuantity(quantity3);
+        cartPage = productPage3.addToCart();
 
-        cartPage = productPage3.getHeader().goToCart();
-
-        double oldTotal = cartPage.getTotal();
-        CartPage.CartItem cheapestItem = cartPage.findCheapestItem();
+        double oldTotal = cartPage.getSubTotal();
+        CartItem cheapestItem = cartPage.findCheapestItem();
         Assertions.assertNotNull(cheapestItem, "Cheapest item should exist");
 
-        int oldQuantity = cheapestItem.quantity;
-        double cheapestPrice = cheapestItem.unitPrice;
+        int oldQuantity = cheapestItem.getQuantity();
+        double cheapestPrice = cheapestItem.getUnitPrice();
 
-        cartPage.updateQuantity(cheapestItem, oldQuantity * 2).clickUpdate();
+        cartPage.updateQuantity(cheapestItem, oldQuantity * 2)
+                .clickUpdate();
 
-        double newTotal = cartPage.getTotal();
+        double newTotal = cartPage.getSubTotal();
         double expectedTotal = oldTotal + (cheapestPrice * oldQuantity);
 
-        Assertions.assertEquals(expectedTotal, newTotal, 0.01);
-        takeScreenshot("cart-after-doubling");
+        Assertions.assertEquals(expectedTotal, newTotal, 0.01,
+                String.format("Total should be %.2f after doubling quantity", expectedTotal));
     }
 }

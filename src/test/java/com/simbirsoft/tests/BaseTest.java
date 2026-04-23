@@ -6,6 +6,9 @@ import com.simbirsoft.pages.HomePage;
 import io.qameta.allure.Allure;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.extension.ExtensionContext;
+import org.junit.jupiter.api.extension.TestWatcher;
+import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.OutputType;
 import org.openqa.selenium.TakesScreenshot;
 import org.openqa.selenium.WebDriver;
@@ -13,8 +16,9 @@ import org.openqa.selenium.support.ui.WebDriverWait;
 
 import java.io.ByteArrayInputStream;
 import java.time.Duration;
+import java.util.Objects;
 
-public abstract class BaseTest {
+public abstract class BaseTest implements TestWatcher {
 
     protected WebDriver driver;
     protected WebDriverWait waiter;
@@ -31,21 +35,33 @@ public abstract class BaseTest {
 
         driver.get(ParameterProvider.get("base.url"));
         homePage = new HomePage(driver, waiter);
+        waiter.until(webDriver -> Objects.equals(((JavascriptExecutor) webDriver)
+                .executeScript("return document.readyState"), "complete"));
     }
 
     @AfterEach
     public void tearDown() {
         if (driver != null) {
-            takeScreenshot("test-finished");
             DriverManager.quitDriver();
         }
+    }
+
+    @Override
+    public void testFailed(ExtensionContext context, Throwable cause) {
+        takeScreenshot(context.getDisplayName() + " - FAILED");
+    }
+
+    @Override
+    public void testAborted(ExtensionContext context, Throwable cause) {
+        takeScreenshot(context.getDisplayName() + " - ABORTED");
     }
 
     protected void takeScreenshot(String name) {
         try {
             Allure.addAttachment(name,
                     new ByteArrayInputStream(((TakesScreenshot) driver).getScreenshotAs(OutputType.BYTES)));
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            System.err.println("Failed to take screenshot: " + e.getMessage());
         }
     }
 }

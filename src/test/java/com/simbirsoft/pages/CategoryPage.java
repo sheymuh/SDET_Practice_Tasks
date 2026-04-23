@@ -2,8 +2,8 @@ package com.simbirsoft.pages;
 
 import com.simbirsoft.helpers.PriceHelper;
 import com.simbirsoft.pages.components.HeaderComponent;
+import io.qameta.allure.Step;
 import org.openqa.selenium.By;
-import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.FindBy;
@@ -14,6 +14,7 @@ import org.openqa.selenium.support.ui.Select;
 import org.openqa.selenium.support.ui.WebDriverWait;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class CategoryPage extends BasePage {
@@ -32,17 +33,20 @@ public class CategoryPage extends BasePage {
         PageFactory.initElements(new AjaxElementLocatorFactory(driver, 15), this);
     }
 
-    public HeaderComponent getHeader() {
-        return header;
-    }
-
+    @Step("Сортировка товаров по: {sortOption}")
     public CategoryPage sortBy(String sortOption) {
         waiter.until(ExpectedConditions.elementToBeClickable(sortDropdown));
+
+        String oldUrl = driver.getCurrentUrl();
         new Select(sortDropdown).selectByVisibleText(sortOption);
-        sleep(1500);
+
+        waiter.until(driver -> !Objects.equals(driver.getCurrentUrl(), oldUrl));
+        waiter.until(ExpectedConditions.visibilityOfAllElements(productCards));
+
         return this;
     }
 
+    @Step("Получение названий всех товаров на странице")
     public List<String> getProductNames() {
         waitForProductsToLoad();
         return productCards.stream()
@@ -51,6 +55,7 @@ public class CategoryPage extends BasePage {
                 .collect(Collectors.toList());
     }
 
+    @Step("Получение цен всех товаров на странице")
     public List<Double> getProductPrices() {
         waitForProductsToLoad();
         return productCards.stream()
@@ -59,31 +64,13 @@ public class CategoryPage extends BasePage {
                 .collect(Collectors.toList());
     }
 
-    public ProductPage clickProductByIndex(int index) {
-        waitForProductsToLoad();
-
-        if (index >= productCards.size()) {
-            throw new IllegalArgumentException("Index " + index + " out of bounds");
-        }
-
-        WebElement productLink = getProductLink(productCards.get(index));
-        ((JavascriptExecutor) driver).executeScript("arguments[0].scrollIntoView(true);", productLink);
-        sleep(500);
-
-        try {
-            productLink.click();
-        } catch (Exception e) {
-            ((JavascriptExecutor) driver).executeScript("arguments[0].click();", productLink);
-        }
-
-        return new ProductPage(driver, waiter);
-    }
-
+    @Step("Получение количества товаров на странице")
     public int getProductCount() {
         try {
             waitForProductsToLoad();
             return productCards.size();
         } catch (Exception e) {
+            System.err.println("Failed to extract product price: " + e.getMessage());
             return 0;
         }
     }
@@ -94,6 +81,7 @@ public class CategoryPage extends BasePage {
             WebElement fixedWrapper = parentCol.findElement(By.cssSelector("div.fixed_wrapper"));
             return fixedWrapper.findElement(By.cssSelector("a.prdocutname")).getText().trim();
         } catch (Exception e) {
+            System.err.println("Failed to extract product name: " + e.getMessage());
             return "";
         }
     }
@@ -109,21 +97,7 @@ public class CategoryPage extends BasePage {
         }
     }
 
-    private WebElement getProductLink(WebElement card) {
-        WebElement parentCol = card.findElement(By.xpath(".."));
-        WebElement fixedWrapper = parentCol.findElement(By.cssSelector("div.fixed_wrapper"));
-        return fixedWrapper.findElement(By.cssSelector("a.prdocutname"));
-    }
-
     private void waitForProductsToLoad() {
         waiter.until(ExpectedConditions.visibilityOfAllElements(productCards));
-    }
-
-    private void sleep(long ms) {
-        try {
-            Thread.sleep(ms);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
     }
 }

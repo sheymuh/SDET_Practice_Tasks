@@ -8,11 +8,17 @@ public abstract class BasePage {
 
     protected WebDriver driver;
     protected WebDriverWait waiter;
-    protected Actions actions;
+    private Actions actions;
 
     public BasePage(WebDriver driver, WebDriverWait waiter) {
         this.driver = driver;
         this.waiter = waiter;
-        this.actions = new Actions(driver);
+    }
+
+    protected Actions initActions() {
+        if (actions == null) {
+            actions = new Actions(driver);
+        }
+        return actions;
     }
 }

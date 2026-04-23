@@ -8,8 +8,6 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 
-import java.util.List;
-
 @Feature("Фильтрация в категориях")
 @Execution(ExecutionMode.CONCURRENT)
 public class FilterTest extends BaseTest {
@@ -18,9 +16,9 @@ public class FilterTest extends BaseTest {
 
     @BeforeEach
     public void navigateToCategory() {
-        driver.get("https://automationteststore.com/index.php?rt=product/category&path=49_51");
-        categoryPage = new CategoryPage(driver, waiter);
-        Assertions.assertTrue(categoryPage.getProductCount() >= 4, "Category should have at least 4 products");
+        categoryPage = homePage.navigateToFragranceMenCategory();
+        Assertions.assertTrue(categoryPage.getProductCount() >= 4,
+                "Category should have at least 4 products");
     }
 
     @Test
