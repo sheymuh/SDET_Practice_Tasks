@@ -36,7 +36,7 @@ jobs:
       - name: Start server with Docker Compose
         run: |
           cd server
-          docker-compose up --build -d
+          docker compose up --build -d
           cd ..
 
       - name: Wait for PostgreSQL
@@ -94,7 +94,7 @@ jobs:
         if: always()
         run: |
           cd server
-          docker-compose down
+          docker compose down
           cd ..
 
   allure-report:
@@ -112,12 +112,15 @@ jobs:
           name: allure-results
           path: target/allure-results
 
+      - name: Install Allure CLI
+        run: |
+          wget -q https://github.com/allure-framework/allure2/releases/download/2.25.0/allure-2.25.0.tgz
+          tar -xzf allure-2.25.0.tgz
+          echo "$(pwd)/allure-2.25.0/bin" >> $GITHUB_PATH
+
       - name: Generate Allure Report
-        uses: simple-elf/allure-report-action@v1.9
-        with:
-          allure_results: target/allure-results
-          allure_history: allure-history
-          keep_reports: 5
+        run: |
+          allure generate target/allure-results --clean -o allure-report
 
       - name: Deploy report to GitHub Pages
         if: always()
@@ -125,4 +128,4 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: gh-pages
-          publish_dir: allure-history
+          publish_dir: allure-report
