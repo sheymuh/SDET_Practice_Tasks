@@ -1,0 +1,128 @@
+name: API Tests with Allure Report
+
+on:
+  push:
+    branches: [ master, main, api-tests ]
+  pull_request:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+env:
+  BASE_URL: http://localhost:8080
+
+jobs:
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout test repository
+        uses: actions/checkout@v4
+
+      - name: Checkout server repository
+        uses: actions/checkout@v4
+        with:
+          repository: sun6r0/test-service
+          path: server
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: 17
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Start server with Docker Compose
+        run: |
+          cd server
+          docker-compose up --build -d
+          cd ..
+
+      - name: Wait for PostgreSQL
+        run: |
+          echo "Ожидание готовности PostgreSQL..."
+          for i in {1..30}; do
+            if docker exec server-postgres-1 pg_isready -U test -d test > /dev/null 2>&1; then
+              echo "PostgreSQL готов"
+              break
+            fi
+            echo "   Попытка $i/30: БД ещё не готова..."
+            sleep 2
+          done
+        continue-on-error: true
+
+      - name: Wait for API server to be ready
+        run: |
+          echo "Ожидание запуска API-сервера на http://localhost:8080 ..."
+          for i in {1..30}; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/api/getAll || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "Сервер запущен и отвечает (HTTP $STATUS)"
+              exit 0
+            fi
+            echo "   Попытка $i/30: статус $STATUS, ждём 2 секунды..."
+            sleep 2
+          done
+          echo "Сервер не запустился за 60 секунд"
+          echo "Логи контейнеров:"
+          cd server && docker-compose logs --tail=50 && cd ..
+          exit 1
+
+      - name: Run API tests
+        run: mvn clean test
+        env:
+          BASE_URL: ${{ env.BASE_URL }}
+
+      - name: Upload Allure results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-results
+          path: target/allure-results
+          retention-days: 7
+
+      - name: Upload test logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs
+          path: target/surefire-reports
+          retention-days: 7
+
+      - name: Stop server
+        if: always()
+        run: |
+          cd server
+          docker-compose down
+          cd ..
+
+  allure-report:
+    needs: test
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download Allure results
+        uses: actions/download-artifact@v4
+        with:
+          name: allure-results
+          path: target/allure-results
+
+      - name: Generate Allure Report
+        uses: simple-elf/allure-report-action@v1.9
+        with:
+          allure_results: target/allure-results
+          allure_history: allure-history
+          keep_reports: 5
+
+      - name: Deploy report to GitHub Pages
+        if: always()
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: allure-history
