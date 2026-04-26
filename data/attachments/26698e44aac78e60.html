@@ -1,0 +1,44 @@
+<div>POST to http://localhost:8080/api/create</div>
+
+<h4>Body</h4>
+<div>
+    <pre class="preformated-text">
+{
+    &quot;addition&quot;: {
+        &quot;additional_info&quot;: &quot;Доп. сведения 5903&quot;,
+        &quot;additional_number&quot;: 533864
+    },
+    &quot;important_numbers&quot;: [
+        89,
+        13,
+        23
+    ],
+    &quot;title&quot;: &quot;Тестовая сущность 166&quot;,
+    &quot;verified&quot;: true
+}    </pre>
+</div>
+
+<h4>Headers</h4>
+<div>
+        <div>Accept: */*</div>
+        <div>Content-Type: application/json</div>
+</div>
+
+
+
+<h4>Curl</h4>
+<div>
+curl -v -X POST &#39;http://localhost:8080/api/create&#39; -H &#39;Accept: */*&#39; -H &#39;Content-Type: application/json&#39; -d &#39;{
+    &quot;addition&quot;: {
+        &quot;additional_info&quot;: &quot;Доп. сведения 5903&quot;,
+        &quot;additional_number&quot;: 533864
+    },
+    &quot;important_numbers&quot;: [
+        89,
+        13,
+        23
+    ],
+    &quot;title&quot;: &quot;Тестовая сущность 166&quot;,
+    &quot;verified&quot;: true
+}&#39;
+</div>
