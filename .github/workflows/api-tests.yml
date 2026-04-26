@@ -1,4 +1,4 @@
-name: API Tests with Allure Report
+name: API tests with Allure report
 
 on:
   push:
@@ -9,6 +9,9 @@ on:
 
 env:
   BASE_URL: http://localhost:8080
+
+permissions:
+  contents: write
 
 jobs:
 
@@ -30,43 +33,56 @@ jobs:
         uses: actions/setup-java@v4
         with:
           java-version: 17
-          distribution: 'temurin'
+          distribution: temurin
           cache: maven
 
-      - name: Start server with Docker Compose
+      - name: Start PostgreSQL
         run: |
           cd server
-          docker compose up --build -d
+          docker compose up -d postgres
           cd ..
 
       - name: Wait for PostgreSQL
         run: |
-          echo "Ожидание готовности PostgreSQL..."
-          for i in {1..30}; do
-            if docker exec server-postgres-1 pg_isready -U test -d test > /dev/null 2>&1; then
-              echo "PostgreSQL готов"
-              break
-            fi
-            echo "   Попытка $i/30: БД ещё не готова..."
-            sleep 2
-          done
-        continue-on-error: true
-
-      - name: Wait for API server to be ready
-        run: |
-          echo "Ожидание запуска API-сервера на http://localhost:8080 ..."
-          for i in {1..30}; do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/api/getAll || echo "000")
-            if [ "$STATUS" = "200" ]; then
-              echo "Сервер запущен и отвечает (HTTP $STATUS)"
+          echo "Waiting for PostgreSQL..."
+          for i in $(seq 1 30); do
+            if docker exec server-postgres-1 pg_isready -U test -d test -q 2>/dev/null; then
+              echo "PostgreSQL is ready"
               exit 0
             fi
-            echo "   Попытка $i/30: статус $STATUS, ждём 2 секунды..."
+            echo "Attempt $i/30: PostgreSQL not ready, waiting 2 seconds..."
             sleep 2
           done
-          echo "Сервер не запустился за 60 секунд"
-          echo "Логи контейнеров:"
-          cd server && docker-compose logs --tail=50 && cd ..
+          echo "PostgreSQL did not start"
+          cd server && docker compose logs postgres --tail=50 && cd ..
+          exit 1
+
+      - name: Run migrations
+        run: |
+          cd server
+          docker compose up migrate
+          cd ..
+
+      - name: Start API server
+        run: |
+          cd server
+          docker compose up -d service
+          cd ..
+
+      - name: Wait for API server
+        run: |
+          echo "Waiting for server on http://localhost:8080 ..."
+          for i in $(seq 1 30); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/api/getAll 2>/dev/null || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "Server is ready (HTTP 200)"
+              exit 0
+            fi
+            echo "Attempt $i/30: status $STATUS, waiting 2 seconds..."
+            sleep 2
+          done
+          echo "Server did not start in 60 seconds"
+          cd server && docker compose logs service --tail=100 && cd ..
           exit 1
 
       - name: Run API tests
@@ -118,7 +134,7 @@ jobs:
           tar -xzf allure-2.25.0.tgz
           echo "$(pwd)/allure-2.25.0/bin" >> $GITHUB_PATH
 
-      - name: Generate Allure Report
+      - name: Generate Allure report
         run: |
           allure generate target/allure-results --clean -o allure-report
 
