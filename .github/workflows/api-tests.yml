@@ -2,7 +2,7 @@ name: API Tests with Allure Report
 
 on:
   push:
-    branches: [ master, main, api-tests ]
+    branches: [ master, main, api-tests, ci-debug ]
   pull_request:
     branches: [ master, main ]
   workflow_dispatch:
